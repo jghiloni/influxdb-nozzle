@@ -1,0 +1,68 @@
+---
+resources:
+- name: master
+  type: git
+  source:
+    uri: git@github.com:ECSTeam/influxdb-nozzle.git
+    branch: master
+    private_key: {{github-private-key}}
+- name: version
+  type: semver
+  source:
+    driver: git
+    uri: git@github.com:ECSTeam/influxdb-nozzle.git
+    branch: version
+    file: version
+    private_key: {{github-private-key}}
+    initial_version: 0.1.0
+- name: release
+  type: github-release
+  source:
+    user: ECSTeam
+    repository: influxdb-nozzle
+    access_token: {{github-access-token}}
+jobs:
+- name: unit-tests
+  public: true
+  plan:
+  - get: master
+    trigger: true
+  - get: version
+    trigger: true
+  - task: unit
+    file: master/ci/tasks/master-unit-tests.yml
+- name: bump-minor
+  public: true
+  plan:
+  - get: version
+    params: { bump: minor }
+  - put: version
+    params: { file: version/number }
+- name: bump-major
+  public: true
+  plan:
+  - get: version
+    params: { bump: major }
+  - put: version
+    params: { file: version/number }
+- name: build-jar
+  public: true
+  plan:
+  - aggregate:
+      - get: version
+      - get: master
+        trigger: true
+        passed: [unit-tests]
+  - task: version
+    file: master/ci/tasks/set-version.yml
+  - task: build
+    file: master/ci/tasks/build-jar.yml
+  - put: version
+    params: {bump: patch}
+  - put: release
+    params:
+      name: version/number
+      tag: version/number
+      tag_prefix: v
+      globs:
+      - build-output/*.jar

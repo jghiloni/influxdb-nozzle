@@ -1,0 +1,15 @@
+---
+platform: linux
+
+image_resource:
+  type: docker-image
+  source:
+    repository: ecsteam/spring-boot
+    tag: '1.5.1.RELEASE'
+
+inputs:
+- name: master
+  path: src
+
+run:
+  path: src/ci/tasks/unit-tests.sh

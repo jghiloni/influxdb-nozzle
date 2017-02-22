@@ -1,0 +1,6 @@
+influxdb:
+  nozzle:
+    api-host: ${cc.host}
+
+endpoints:
+  sensitive: false
