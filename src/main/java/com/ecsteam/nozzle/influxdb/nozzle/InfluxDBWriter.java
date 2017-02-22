@@ -47,7 +47,7 @@ public class InfluxDBWriter {
 
 		this.foundation = properties.getFoundation();
 
-		new Thread(new InfluxDBBatchSender(latch, messages, properties, destination)).start();
+		new Thread(new InfluxDBBatchListener(latch, messages, properties, destination)).start();
 	}
 
 	@Async
@@ -113,6 +113,10 @@ public class InfluxDBWriter {
 		}
 
 		if (envelope.getCounterEvent() != null) {
+			if (envelope.getCounterEvent().getDelta() != null) {
+				tags.put("delta", envelope.getCounterEvent().getDelta().toString());
+			}
+
 			tags.put("eventType", "CounterEvent");
 		}
 

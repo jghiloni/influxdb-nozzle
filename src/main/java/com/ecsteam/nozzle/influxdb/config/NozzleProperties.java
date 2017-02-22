@@ -15,8 +15,10 @@
 
 package com.ecsteam.nozzle.influxdb.config;
 
+import com.ecsteam.nozzle.influxdb.nozzle.BackoffPolicy;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.retry.annotation.Backoff;
 
 @Data
 @ConfigurationProperties(prefix = "influxdb.nozzle")
@@ -31,6 +33,11 @@ public class NozzleProperties {
 	private String dbHost = "http://localhost:8086";
 	private String dbName = "metrics";
 	private int batchSize = 100;
+
+	private BackoffPolicy backoffPolicy = BackoffPolicy.exponential;
+	private long minBackoff = 100L;
+	private long maxBackoff = 1000L;
+	private int maxRetries = 10;
 
 	private boolean skipSslValidation = false;
 }

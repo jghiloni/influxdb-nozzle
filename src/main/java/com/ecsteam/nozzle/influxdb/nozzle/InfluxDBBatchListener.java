@@ -33,30 +33,17 @@ import java.util.ArrayList;
 import java.util.List;
 
 @RequiredArgsConstructor
-public class InfluxDBBatchSender implements Runnable {
+public class InfluxDBBatchListener implements Runnable {
 
 	private final ResettableCountDownLatch latch;
 	private final List<String> messages;
 	private final NozzleProperties properties;
 	private final MetricsDestination influxDbDestination;
 
-	private RestTemplate template = new RestTemplate();
-	private URI uri;
+	private final ArrayList<String> msgClone = new ArrayList<>();
 
 	@Override
 	public void run() {
-		template.setErrorHandler(new ResponseErrorHandler() {
-			@Override
-			public boolean hasError(ClientHttpResponse clientHttpResponse) throws IOException {
-				return clientHttpResponse.getRawStatusCode() > 399;
-			}
-
-			@Override
-			public void handleError(ClientHttpResponse clientHttpResponse) throws IOException {
-
-			}
-		});
-
 		while (true) {
 			try {
 				latch.await();
@@ -64,46 +51,12 @@ public class InfluxDBBatchSender implements Runnable {
 				break;
 			}
 
-			ArrayList<String> msgClone = new ArrayList<>(messages);
+			msgClone.clear();
+			msgClone.addAll(messages);
+			new Thread(new InfluxDBSender(msgClone, properties, influxDbDestination)).start();
 
-			final StringBuilder builder = new StringBuilder();
-			msgClone.forEach(s -> builder.append(s).append("\n"));
-
-			String body = builder.toString();
-
-			RequestEntity<String> entity =
-					new RequestEntity<>(body, HttpMethod.POST, getUri());
-
-			ResponseEntity<String> response;
-
-			try {
-				response = template.exchange(entity, String.class);
-
-
-				if (response.getStatusCode() != HttpStatus.NO_CONTENT) {
-					System.err.println("Unexpected error writing to influx. Expected 204, got " +
-							response.getStatusCodeValue());
-
-					System.err.println("Request:");
-					System.err.println(body);
-					System.err.println("Response:");
-					System.err.println(response.getBody());
-				}
-
-				messages.clear();
-				latch.reset();
-			} catch (ResourceAccessException e) {
-				e.printStackTrace();
-			}
+			messages.clear();
+			latch.reset();
 		}
-	}
-
-	private URI getUri() {
-		if (uri == null) {
-			uri = URI.create(String.format("%s/write?db=%s",
-					influxDbDestination.getInfluxDbHost(), properties.getDbName()));
-		}
-
-		return uri;
 	}
 }
