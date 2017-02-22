@@ -57,6 +57,7 @@ public class InfluxDBBatchSender implements Runnable {
 			}
 		});
 
+		ArrayList<String> msgClone = new ArrayList<>();
 		while (true) {
 			try {
 				latch.await();
@@ -64,7 +65,8 @@ public class InfluxDBBatchSender implements Runnable {
 				break;
 			}
 
-			ArrayList<String> msgClone = new ArrayList<>(messages);
+			msgClone.clear();
+			msgClone.addAll(messages);
 
 			final StringBuilder builder = new StringBuilder();
 			msgClone.forEach(s -> builder.append(s).append("\n"));
