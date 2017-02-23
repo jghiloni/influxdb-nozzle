@@ -43,7 +43,13 @@ public class InfluxDBBatchListener implements Runnable {
 			log.debug("Batch size reached, sending to target");
 
 			msgClone.clear();
-			msgClone.addAll(messages);
+			synchronized (this) {
+				/*
+				 there is a situation where a message could come in in the miniscule amount of time it takes to copy
+				 the messages into the clone, so synchronize on that.
+				  */
+				msgClone.addAll(messages);
+			}
 			sender.sendBatch(msgClone);
 
 			messages.clear();
