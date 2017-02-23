@@ -40,6 +40,7 @@ import java.io.IOException;
 import java.net.URI;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 
 /**
@@ -58,7 +59,7 @@ public class InfluxDBSender {
 
 	@Async
 	public void sendBatch(List<String> messages) {
-		log.info("ENTER sendBatch");
+		log.debug("ENTER sendBatch");
 		httpClient.setErrorHandler(new ResponseErrorHandler() {
 			@Override
 			public boolean hasError(ClientHttpResponse clientHttpResponse) throws IOException {
@@ -76,8 +77,10 @@ public class InfluxDBSender {
 		retryable.setRetryPolicy(new SimpleRetryPolicy(properties.getMaxRetries(),
 				Collections.singletonMap(ResourceAccessException.class, true)));
 
-		retryable.execute(context -> {
-
+		final AtomicInteger counter = new AtomicInteger(0);
+		retryable.execute(retryContext -> {
+			int count = counter.incrementAndGet();
+			log.trace("Attempt {} to deliver this batch", count);
 			final StringBuilder builder = new StringBuilder();
 			messages.forEach(s -> builder.append(s).append("\n"));
 
@@ -93,12 +96,19 @@ public class InfluxDBSender {
 
 			if (response.getStatusCode() != HttpStatus.NO_CONTENT) {
 				log.error("Failed to write logs to InfluxDB! Expected error code 204, got {}", response.getStatusCodeValue());
-				if (log.isTraceEnabled()) {
-					log.trace("Request Body: {}", body);
-					log.trace("Response Body: {}", response.getBody());
-				}
+
+				log.trace("Request Body: {}", body);
+				log.trace("Response Body: {}", response.getBody());
+
+			} else {
+				log.debug("batch sent successfully!");
 			}
 
+			log.debug("EXIT sendBatch");
+
+			return null;
+		}, recoveryContext -> {
+			log.trace("Failed after {} attempts!", counter.get());
 			return null;
 		});
 	}

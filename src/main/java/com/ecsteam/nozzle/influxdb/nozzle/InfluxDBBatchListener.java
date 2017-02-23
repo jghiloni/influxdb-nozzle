@@ -40,7 +40,7 @@ public class InfluxDBBatchListener implements Runnable {
 				break;
 			}
 
-			log.info("Batch size reached, sending to target");
+			log.debug("Batch size reached, sending to target");
 
 			msgClone.clear();
 			msgClone.addAll(messages);

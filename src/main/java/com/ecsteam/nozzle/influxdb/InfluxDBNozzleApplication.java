@@ -17,8 +17,11 @@ package com.ecsteam.nozzle.influxdb;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.context.annotation.Bean;
+import org.springframework.core.task.TaskExecutor;
 import org.springframework.retry.annotation.EnableRetry;
 import org.springframework.scheduling.annotation.EnableAsync;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
 @SpringBootApplication
 @EnableAsync
@@ -26,5 +29,14 @@ import org.springframework.scheduling.annotation.EnableAsync;
 public class InfluxDBNozzleApplication {
 	public static void main(String[] args) {
 		SpringApplication.run(InfluxDBNozzleApplication.class, args);
+	}
+
+	@Bean
+	public TaskExecutor taskExecutor() {
+		ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+		executor.setMaxPoolSize(50);
+		executor.setCorePoolSize(30);
+
+		return executor;
 	}
 }
