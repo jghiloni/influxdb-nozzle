@@ -18,6 +18,9 @@ package com.ecsteam.nozzle.influxdb.destination;
 import com.ecsteam.nozzle.influxdb.config.NozzleProperties;
 import lombok.RequiredArgsConstructor;
 
+/**
+ * Returns the user-defined influx DB location
+ */
 @RequiredArgsConstructor
 public class StandaloneInfluxDbDestination implements MetricsDestination {
 	private final NozzleProperties properties;

@@ -30,6 +30,8 @@ import org.springframework.retry.backoff.FixedBackOffPolicy;
 import org.springframework.retry.backoff.UniformRandomBackOffPolicy;
 import org.springframework.retry.policy.SimpleRetryPolicy;
 import org.springframework.retry.support.RetryTemplate;
+import org.springframework.scheduling.annotation.Async;
+import org.springframework.stereotype.Service;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.ResponseErrorHandler;
 import org.springframework.web.client.RestTemplate;
@@ -39,18 +41,24 @@ import java.net.URI;
 import java.util.Collections;
 import java.util.List;
 
+
+/**
+ * Sends a batch of messages to InfluxDB with retry logic.
+ */
 @RequiredArgsConstructor
 @Slf4j
-public class InfluxDBSender implements Runnable {
+@Service
+public class InfluxDBSender {
 	private RestTemplate httpClient = new RestTemplate();
 	private URI uri;
+	private BackOffPolicy backOffPolicy;
 
-	private final List<String> messages;
 	private final NozzleProperties properties;
 	private final MetricsDestination influxDbDestination;
 
-	@Override
-	public void run() {
+	@Async
+	public void sendBatch(List<String> messages) {
+		log.info("ENTER sendBatch");
 		httpClient.setErrorHandler(new ResponseErrorHandler() {
 			@Override
 			public boolean hasError(ClientHttpResponse clientHttpResponse) throws IOException {
@@ -84,13 +92,11 @@ public class InfluxDBSender implements Runnable {
 
 
 			if (response.getStatusCode() != HttpStatus.NO_CONTENT) {
-				System.err.println("Unexpected error writing to influx. Expected 204, got " +
-						response.getStatusCodeValue());
-
-				System.err.println("Request:");
-				System.err.println(body);
-				System.err.println("Response:");
-				System.err.println(response.getBody());
+				log.error("Failed to write logs to InfluxDB! Expected error code 204, got {}", response.getStatusCodeValue());
+				if (log.isTraceEnabled()) {
+					log.trace("Request Body: {}", body);
+					log.trace("Response Body: {}", response.getBody());
+				}
 			}
 
 			return null;
@@ -107,27 +113,27 @@ public class InfluxDBSender implements Runnable {
 	}
 
 	private BackOffPolicy getBackOffPolicy() {
-		BackOffPolicy policy;
-		switch (properties.getBackoffPolicy()) {
-
-			case linear:
-				policy = new FixedBackOffPolicy();
-				((FixedBackOffPolicy) policy).setBackOffPeriod(properties.getMinBackoff());
-				break;
-			case random:
-				policy = new UniformRandomBackOffPolicy();
-				((UniformRandomBackOffPolicy) policy).setMinBackOffPeriod(properties.getMinBackoff());
-				((UniformRandomBackOffPolicy) policy).setMaxBackOffPeriod(properties.getMaxBackoff());
-				break;
-			case exponential:
-			default:
-				policy = new ExponentialBackOffPolicy();
-				((ExponentialBackOffPolicy) policy).setInitialInterval(properties.getMinBackoff());
-				((ExponentialBackOffPolicy) policy).setMaxInterval(properties.getMaxBackoff());
-				break;
-
+		if (backOffPolicy == null) {
+			log.info("Using backoff policy {}", properties.getBackoffPolicy().name());
+			switch (properties.getBackoffPolicy()) {
+				case linear:
+					backOffPolicy = new FixedBackOffPolicy();
+					((FixedBackOffPolicy) backOffPolicy).setBackOffPeriod(properties.getMinBackoff());
+					break;
+				case random:
+					backOffPolicy = new UniformRandomBackOffPolicy();
+					((UniformRandomBackOffPolicy) backOffPolicy).setMinBackOffPeriod(properties.getMinBackoff());
+					((UniformRandomBackOffPolicy) backOffPolicy).setMaxBackOffPeriod(properties.getMaxBackoff());
+					break;
+				case exponential:
+				default:
+					backOffPolicy = new ExponentialBackOffPolicy();
+					((ExponentialBackOffPolicy) backOffPolicy).setInitialInterval(properties.getMinBackoff());
+					((ExponentialBackOffPolicy) backOffPolicy).setMaxInterval(properties.getMaxBackoff());
+					break;
+			}
 		}
 
-		return policy;
+		return backOffPolicy;
 	}
 }

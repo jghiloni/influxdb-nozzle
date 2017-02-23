@@ -15,6 +15,9 @@
 
 package com.ecsteam.nozzle.influxdb.destination;
 
+/**
+ * Return the base URL of InfluxDB
+ */
 public interface MetricsDestination {
 	String getInfluxDbHost();
 }

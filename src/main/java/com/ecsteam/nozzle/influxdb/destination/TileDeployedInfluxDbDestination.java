@@ -15,11 +15,13 @@
 
 package com.ecsteam.nozzle.influxdb.destination;
 
-import org.springframework.beans.factory.annotation.Value;
-
 import java.net.MalformedURLException;
 import java.net.URL;
 
+/**
+ * An instance of MetricsDestination that will send information to http://influxdb.{SYSTEM_DOMAIN}, as that
+ * is how the influxdb system will be deployed as a tile
+ */
 public class TileDeployedInfluxDbDestination implements MetricsDestination {
 
 	private final String apiEndpoint;

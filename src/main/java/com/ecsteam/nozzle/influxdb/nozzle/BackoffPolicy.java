@@ -16,7 +16,7 @@
 package com.ecsteam.nozzle.influxdb.nozzle;
 
 /**
- * Created by josh on 2/22/17.
+ * Supported backoff policiesx
  */
 public enum BackoffPolicy {
 	exponential, linear, random;

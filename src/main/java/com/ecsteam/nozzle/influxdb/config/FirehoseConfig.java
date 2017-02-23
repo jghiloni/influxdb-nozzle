@@ -69,6 +69,7 @@ public class FirehoseConfig {
 			URL url = new URL(apiHost);
 			apiHost = url.getHost();
 		} catch (MalformedURLException e) {
+			// this will happen if passed directly as "api.{SYSTEM_DOMAIN}"
 		} finally {
 			return apiHost;
 		}

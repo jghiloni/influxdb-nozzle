@@ -23,21 +23,69 @@ import org.springframework.retry.annotation.Backoff;
 @Data
 @ConfigurationProperties(prefix = "influxdb.nozzle")
 public class NozzleProperties {
+	/**
+	 * The Cloud Controller host. Should be in the form `api.{{SYSTEM_DOMAIN}}`
+	 */
 	private String apiHost;
+
+	/**
+	 * An OAuth client id whose scopes include `doppler.firehose`
+	 */
 	private String clientId;
+
+	/**
+	 * The secret for the above client
+	 */
 	private String clientSecret;
 
+	/**
+	 * A unique subscription ID used by the Firehose. Instances of a nozzle with
+	 * the same subscription id will have messages evenly spread across them.
+	 */
 	private String subscriptionId = "influxdb-nozzle";
+
+	/**
+	 * If set, will add an extra tag "foundation={value}" to every measurement
+	 */
 	private String foundation;
 
+	/**
+	 * The InfluxDB host URL
+	 */
 	private String dbHost = "http://localhost:8086";
+
+	/**
+	 * The DB name (which must exist)
+	 */
 	private String dbName = "metrics";
+
+	/**
+	 * The Batch size to be sent to influxdb. Should be < 5000 per Influx documentation
+	 */
 	private int batchSize = 100;
 
+	/**
+	 * The policy to use when backing off retries (exponential, linear, random)
+	 */
 	private BackoffPolicy backoffPolicy = BackoffPolicy.exponential;
+
+	/**
+	 * The min backoff time in ms
+	 */
 	private long minBackoff = 100L;
-	private long maxBackoff = 1000L;
+
+	/**
+	 * The max backoff time in ms
+	 */
+	private long maxBackoff = 30000L;
+
+	/**
+	 * max number of retries
+	 */
 	private int maxRetries = 10;
 
+	/**
+	 * Skip SSL validation when connecting to the firehose
+	 */
 	private boolean skipSslValidation = false;
 }

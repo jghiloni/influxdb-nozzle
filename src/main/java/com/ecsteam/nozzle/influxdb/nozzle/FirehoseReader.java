@@ -17,6 +17,7 @@ package com.ecsteam.nozzle.influxdb.nozzle;
 
 import com.ecsteam.nozzle.influxdb.config.NozzleProperties;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.cloudfoundry.doppler.Envelope;
 import org.cloudfoundry.doppler.FirehoseRequest;
 import org.cloudfoundry.reactor.doppler.ReactorDopplerClient;
@@ -24,9 +25,10 @@ import org.springframework.context.SmartLifecycle;
 import org.springframework.stereotype.Service;
 
 /**
- * Created by josh on 2/15/17.
+ * Read events from the firehose
  */
 @RequiredArgsConstructor
+@Slf4j
 public class FirehoseReader implements SmartLifecycle {
 	private final ReactorDopplerClient dopplerClient;
 	private final NozzleProperties properties;
@@ -47,6 +49,7 @@ public class FirehoseReader implements SmartLifecycle {
 
 	@Override
 	public void start() {
+		log.info("Connecting to the Firehose");
 		dopplerClient.firehose(FirehoseRequest.builder()
 			.subscriptionId(properties.getSubscriptionId()).build())
 			.subscribe(this::receiveEvent);

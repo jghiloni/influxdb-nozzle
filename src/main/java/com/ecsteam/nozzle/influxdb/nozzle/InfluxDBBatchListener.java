@@ -15,30 +15,19 @@
 
 package com.ecsteam.nozzle.influxdb.nozzle;
 
-import com.ecsteam.nozzle.influxdb.config.NozzleProperties;
-import com.ecsteam.nozzle.influxdb.destination.MetricsDestination;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpMethod;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.RequestEntity;
-import org.springframework.http.ResponseEntity;
-import org.springframework.http.client.ClientHttpResponse;
-import org.springframework.web.client.ResourceAccessException;
-import org.springframework.web.client.ResponseErrorHandler;
-import org.springframework.web.client.RestTemplate;
+import lombok.extern.slf4j.Slf4j;
 
-import java.io.IOException;
-import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
 
 @RequiredArgsConstructor
+@Slf4j
 public class InfluxDBBatchListener implements Runnable {
 
 	private final ResettableCountDownLatch latch;
 	private final List<String> messages;
-	private final NozzleProperties properties;
-	private final MetricsDestination influxDbDestination;
+	private final InfluxDBSender sender;
 
 	private final ArrayList<String> msgClone = new ArrayList<>();
 
@@ -51,9 +40,11 @@ public class InfluxDBBatchListener implements Runnable {
 				break;
 			}
 
+			log.info("Batch size reached, sending to target");
+
 			msgClone.clear();
 			msgClone.addAll(messages);
-			new Thread(new InfluxDBSender(msgClone, properties, influxDbDestination)).start();
+			sender.sendBatch(msgClone);
 
 			messages.clear();
 			latch.reset();
