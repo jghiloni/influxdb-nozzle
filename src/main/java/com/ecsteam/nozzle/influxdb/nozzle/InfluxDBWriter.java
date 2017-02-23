@@ -17,6 +17,7 @@ package com.ecsteam.nozzle.influxdb.nozzle;
 
 import com.ecsteam.nozzle.influxdb.config.NozzleProperties;
 import com.ecsteam.nozzle.influxdb.destination.MetricsDestination;
+import lombok.extern.slf4j.Slf4j;
 import org.cloudfoundry.doppler.CounterEvent;
 import org.cloudfoundry.doppler.Envelope;
 import org.cloudfoundry.doppler.ValueMetric;
@@ -32,7 +33,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Captures messages from the Cloud Foundry Firehose and batches them to be sent to InfluxDB
+ */
 @Service
+@Slf4j
 public class InfluxDBWriter {
 
 	private final ResettableCountDownLatch latch;
@@ -41,15 +46,26 @@ public class InfluxDBWriter {
 	private String foundation;
 
 	@Autowired
-	public InfluxDBWriter(NozzleProperties properties, MetricsDestination destination) {
+	public InfluxDBWriter(NozzleProperties properties, MetricsDestination destination, InfluxDBSender sender) {
+		log.info("Initializing DB Writer with batch size {}", properties.getBatchSize());
 		this.messages = Collections.synchronizedList(new ArrayList<>());
 		this.latch = new ResettableCountDownLatch(properties.getBatchSize());
 
 		this.foundation = properties.getFoundation();
 
-		new Thread(new InfluxDBBatchSender(latch, messages, properties, destination)).start();
+		new Thread(new InfluxDBBatchListener(latch, messages, sender)).start();
 	}
 
+	/**
+	 * Convert an envelope into an InfluxDB compatible message. In general, the format is
+	 *
+	 * <tt>message[,tag=value]* value timestamp</tt>
+	 *
+	 * Add each message String to a batch list and count down a latch. When the latch reaches 0,
+	 * it will write to InfluxDB and reset.
+	 *
+	 * @param envelope The event from the Firehose
+	 */
 	@Async
 	public void writeMessage(Envelope envelope) {
 		final StringBuilder messageBuilder = new StringBuilder();
@@ -61,14 +77,20 @@ public class InfluxDBWriter {
 		getTags(envelope).forEach((k, v) -> messageBuilder.append(",").append(k).append("=").append(v));
 
 		messageBuilder.append(" value=").append(ce == null ? vm.value() : ce.getTotal())
-			.append(" ")
-			.append(envelope.getTimestamp());
+				.append(" ")
+				.append(envelope.getTimestamp());
 
 		this.messages.add(messageBuilder.toString());
 
 		latch.countDown();
 	}
 
+	/**
+	 * Get all the tags from the Envelope plus any EventType-specific fields into a single Map
+	 *
+	 * @param envelope the Event
+	 * @return the tag map
+	 */
 	private Map<String, String> getTags(Envelope envelope) {
 		final Map<String, String> tags = new HashMap<>();
 
@@ -113,6 +135,10 @@ public class InfluxDBWriter {
 		}
 
 		if (envelope.getCounterEvent() != null) {
+			if (envelope.getCounterEvent().getDelta() != null) {
+				tags.put("delta", envelope.getCounterEvent().getDelta().toString());
+			}
+
 			tags.put("eventType", "CounterEvent");
 		}
 

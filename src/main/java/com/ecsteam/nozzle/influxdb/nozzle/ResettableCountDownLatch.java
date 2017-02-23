@@ -19,9 +19,12 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Created by josh on 2/15/17.
+ *
+ * A drop-in replacement for a <tt>java.util.concurrent.CountDownLatch</tt>
+ * that can be reset for looping awaits.
+ *
+ * Taken from http://stackoverflow.com/a/40288284/4462517
  */
-// from http://stackoverflow.com/a/40288284/4462517
 public class ResettableCountDownLatch {
 	private final int initialCount;
 	private volatile CountDownLatch latch;

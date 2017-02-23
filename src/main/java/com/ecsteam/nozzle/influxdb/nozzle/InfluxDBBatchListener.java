@@ -13,20 +13,41 @@
  *  specific language governing permissions and limitations under the License.
  ******************************************************************************/
 
-package com.ecsteam.nozzle.influxdb.destination;
+package com.ecsteam.nozzle.influxdb.nozzle;
 
-import com.ecsteam.nozzle.influxdb.config.NozzleProperties;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
-/**
- * Returns the user-defined influx DB location
- */
+import java.util.ArrayList;
+import java.util.List;
+
 @RequiredArgsConstructor
-public class StandaloneInfluxDbDestination implements MetricsDestination {
-	private final NozzleProperties properties;
+@Slf4j
+public class InfluxDBBatchListener implements Runnable {
+
+	private final ResettableCountDownLatch latch;
+	private final List<String> messages;
+	private final InfluxDBSender sender;
+
+	private final ArrayList<String> msgClone = new ArrayList<>();
 
 	@Override
-	public String getInfluxDbHost() {
-		return properties.getDbHost();
+	public void run() {
+		while (true) {
+			try {
+				latch.await();
+			} catch (InterruptedException e) {
+				break;
+			}
+
+			log.debug("Batch size reached, sending to target");
+
+			msgClone.clear();
+			msgClone.addAll(messages);
+			sender.sendBatch(msgClone);
+
+			messages.clear();
+			latch.reset();
+		}
 	}
 }
