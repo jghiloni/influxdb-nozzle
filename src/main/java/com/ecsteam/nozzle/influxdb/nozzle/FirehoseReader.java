@@ -52,7 +52,7 @@ public class FirehoseReader implements SmartLifecycle {
 		log.info("Connecting to the Firehose");
 		dopplerClient.firehose(FirehoseRequest.builder()
 			.subscriptionId(properties.getSubscriptionId()).build())
-			.subscribe(this::receiveEvent);
+			.subscribe(this::receiveEvent, this::receiveError);
 	}
 
 	@Override
@@ -76,6 +76,13 @@ public class FirehoseReader implements SmartLifecycle {
 			case VALUE_METRIC:
 				writer.writeMessage(envelope);
 				break;
+		}
+	}
+
+	private void receiveError(Throwable error) {
+		log.error("Error in receiving Firehose event: {}", error.getMessage());
+		if (log.isDebugEnabled()) {
+			error.printStackTrace();
 		}
 	}
 }
