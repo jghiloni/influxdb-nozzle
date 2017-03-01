@@ -49,10 +49,10 @@ public class InfluxDBBatchListener implements Runnable {
 				 the messages into the clone, so synchronize on that.
 				  */
 				msgClone.addAll(messages);
+				messages.clear();
 			}
 			sender.sendBatch(msgClone);
 
-			messages.clear();
 			latch.reset();
 		}
 	}
