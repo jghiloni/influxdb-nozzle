@@ -13,11 +13,22 @@
  * specific language governing permissions and limitations under the License.
  ******************************************************************************/
 
-package com.ecsteam.nozzle.influxdb.nozzle;
+package com.ecsteam.nozzle.influxdb.config;
+
+import org.springframework.cloud.config.java.AbstractCloudConfig;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Profile;
+import org.springframework.data.redis.connection.RedisConnectionFactory;
 
 /**
- * Supported backoff policiesx
+ * Created by josh on 3/1/17.
  */
-public enum BackoffPolicy {
-	exponential, linear, random;
+@Configuration
+@Profile("cloud")
+public class StructureCacheRedisCloudConfig extends AbstractCloudConfig {
+	@Bean
+	public RedisConnectionFactory redisConnection() {
+		return connectionFactory().redisConnectionFactory();
+	}
 }

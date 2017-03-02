@@ -15,9 +15,13 @@
 
 package com.ecsteam.nozzle.influxdb.nozzle;
 
+import com.ecsteam.nozzle.influxdb.cache.AppSummary;
+import com.ecsteam.nozzle.influxdb.cache.StructureCache;
 import com.ecsteam.nozzle.influxdb.config.NozzleProperties;
 import com.ecsteam.nozzle.influxdb.destination.MetricsDestination;
+import com.ecsteam.nozzle.influxdb.utils.ResettableCountDownLatch;
 import lombok.extern.slf4j.Slf4j;
+import org.cloudfoundry.doppler.ContainerMetric;
 import org.cloudfoundry.doppler.CounterEvent;
 import org.cloudfoundry.doppler.Envelope;
 import org.cloudfoundry.doppler.ValueMetric;
@@ -27,11 +31,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
  * Captures messages from the Cloud Foundry Firehose and batches them to be sent to InfluxDB
@@ -42,6 +42,8 @@ public class InfluxDBWriter {
 
 	private final ResettableCountDownLatch latch;
 	private final List<String> messages;
+
+	private StructureCache cache;
 
 	private String foundation;
 
@@ -68,21 +70,122 @@ public class InfluxDBWriter {
 	 */
 	@Async
 	public void writeMessage(Envelope envelope) {
+
+		Set<String> newMessages;
+		switch (envelope.getEventType()) {
+			case CONTAINER_METRIC:
+				newMessages = writeContainerMetric(envelope);
+				break;
+			case COUNTER_EVENT:
+				newMessages = writeCounterEvent(envelope);
+				break;
+			case VALUE_METRIC:
+				newMessages = writeValueMetric(envelope);
+				break;
+			default:
+				return;
+		}
+
+		synchronized (this) {
+			this.messages.addAll(newMessages);
+			latch.countDown(newMessages.size());
+		}
+	}
+
+	private Set<String> writeCounterEvent(Envelope envelope) {
 		final StringBuilder messageBuilder = new StringBuilder();
 
 		CounterEvent ce = envelope.getCounterEvent();
-		ValueMetric vm = envelope.getValueMetric();
+		messageBuilder.append(ce.getName());
 
-		messageBuilder.append(ce == null ? vm.getName() : ce.getName());
-		getTags(envelope).forEach((k, v) -> messageBuilder.append(",").append(k).append("=").append(v));
+		Map<String, String> tags = getTags(envelope);
+		if (ce.getDelta() != null) {
+			tags.put("delta", ce.getDelta().toString());
+		}
 
-		messageBuilder.append(" value=").append(ce == null ? vm.value() : ce.getTotal())
+		tags.put("eventType", "CounterEvent");
+		tags.forEach((k, v) -> messageBuilder.append(",").append(k).append("=").append(v));
+		messageBuilder.append(" value=").append(ce.getTotal())
 				.append(" ")
 				.append(envelope.getTimestamp());
 
-		this.messages.add(messageBuilder.toString());
+		return Collections.singleton(messageBuilder.toString());
+	}
 
-		latch.countDown();
+	private Set<String> writeValueMetric(Envelope envelope) {
+		final StringBuilder messageBuilder = new StringBuilder();
+
+		ValueMetric vm = envelope.getValueMetric();
+		messageBuilder.append(vm.getName());
+
+		Map<String, String> tags = getTags(envelope);
+		if (StringUtils.hasText(vm.getUnit())) {
+			tags.put("unit", vm.getUnit());
+		}
+
+		tags.put("eventType", "ValueMetric");
+		tags.forEach((k, v) -> messageBuilder.append(",").append(k).append("=").append(v));
+
+		messageBuilder.append(" value=").append(vm.value())
+				.append(" ")
+				.append(envelope.getTimestamp());
+
+		return Collections.singleton(messageBuilder.toString());
+	}
+
+	private Set<String> writeContainerMetric(Envelope envelope) {
+		Set<String> metrics = new HashSet<>();
+
+		ContainerMetric cm = envelope.getContainerMetric();
+
+		Map<String, String> tags = getTags(envelope);
+		tags.put("eventType", "ContainerMetric");
+		tags.put("applicationId", cm.getApplicationId());
+		tags.put("instanceIndex", cm.getInstanceIndex().toString());
+
+		AppSummary summary;
+		if (cache != null) {
+			summary = cache.getAppSummary(cm.getApplicationId());
+			tags.put("applicationName", summary.getApp().getName());
+			tags.put("spaceId", summary.getSpace().getId());
+			tags.put("spaceName", summary.getSpace().getName());
+			tags.put("organizationId", summary.getOrg().getId());
+			tags.put("organizationName", summary.getOrg().getName());
+		}
+
+		final StringBuilder builder = new StringBuilder();
+
+		builder.setLength(0);
+		builder.append("cpuPercentage");
+		tags.forEach((k, v) -> builder.append(",").append(k).append("=").append(v));
+		builder.append(" value=").append(cm.getCpuPercentage()).append(" ").append(envelope.getTimestamp());
+		metrics.add(builder.toString());
+
+		builder.setLength(0);
+		builder.append("diskBytes");
+		tags.forEach((k, v) -> builder.append(",").append(k).append("=").append(v));
+		builder.append(" value=").append(cm.getDiskBytes()).append(" ").append(envelope.getTimestamp());
+		metrics.add(builder.toString());
+
+		builder.setLength(0);
+		builder.append("diskBytesQuota");
+		tags.forEach((k, v) -> builder.append(",").append(k).append("=").append(v));
+		builder.append(" value=").append(cm.getDiskBytesQuota()).append(" ").append(envelope.getTimestamp());
+		metrics.add(builder.toString());
+
+		builder.setLength(0);
+		builder.append("memoryBytes");
+		tags.forEach((k, v) -> builder.append(",").append(k).append("=").append(v));
+		builder.append(" value=").append(cm.getMemoryBytes()).append(" ").append(envelope.getTimestamp());
+		metrics.add(builder.toString());
+
+		builder.setLength(0);
+		builder.append("memoryBytesQuota");
+		tags.forEach((k, v) -> builder.append(",").append(k).append("=").append(v));
+		builder.append(" value=").append(cm.getMemoryBytesQuota()).append(" ").append(envelope.getTimestamp());
+		metrics.add(builder.toString());
+
+		return metrics;
 	}
 
 	/**
@@ -127,21 +230,15 @@ public class InfluxDBWriter {
 		}
 
 		if (envelope.getValueMetric() != null) {
-			if (StringUtils.hasText(envelope.getValueMetric().getUnit())) {
-				tags.put("unit", envelope.getValueMetric().getUnit());
-			}
 
-			tags.put("eventType", "ValueMetric");
 		}
 
-		if (envelope.getCounterEvent() != null) {
-			if (envelope.getCounterEvent().getDelta() != null) {
-				tags.put("delta", envelope.getCounterEvent().getDelta().toString());
-			}
-
-			tags.put("eventType", "CounterEvent");
-		}
 
 		return tags;
+	}
+
+	@Autowired(required = false)
+	public void setStructureCache(StructureCache cache) {
+		this.cache = cache;
 	}
 }

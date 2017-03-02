@@ -15,10 +15,9 @@
 
 package com.ecsteam.nozzle.influxdb.config;
 
-import com.ecsteam.nozzle.influxdb.nozzle.BackoffPolicy;
+import com.ecsteam.nozzle.influxdb.utils.BackoffPolicy;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
-import org.springframework.retry.annotation.Backoff;
 
 @Data
 @ConfigurationProperties(prefix = "influxdb.nozzle")

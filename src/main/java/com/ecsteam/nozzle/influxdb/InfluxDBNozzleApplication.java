@@ -21,22 +21,23 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.core.task.TaskExecutor;
 import org.springframework.retry.annotation.EnableRetry;
 import org.springframework.scheduling.annotation.EnableAsync;
+import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 
 @SpringBootApplication
 @EnableAsync
-@EnableRetry
+//@EnableRetry
+@EnableScheduling
 public class InfluxDBNozzleApplication {
 	public static void main(String[] args) {
 		SpringApplication.run(InfluxDBNozzleApplication.class, args);
 	}
 
 	@Bean
-	public TaskExecutor taskExecutor() {
-		ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-		executor.setMaxPoolSize(50);
-		executor.setCorePoolSize(30);
-
+	public ThreadPoolTaskScheduler taskExecutorAndScheduler() {
+		ThreadPoolTaskScheduler executor = new ThreadPoolTaskScheduler();
+		executor.setPoolSize(25);
 		return executor;
 	}
 }

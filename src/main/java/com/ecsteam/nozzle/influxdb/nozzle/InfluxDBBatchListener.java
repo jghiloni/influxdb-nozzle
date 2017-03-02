@@ -15,6 +15,7 @@
 
 package com.ecsteam.nozzle.influxdb.nozzle;
 
+import com.ecsteam.nozzle.influxdb.utils.ResettableCountDownLatch;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 

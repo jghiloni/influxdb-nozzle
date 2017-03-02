@@ -17,8 +17,12 @@ package com.ecsteam.nozzle.influxdb.config;
 
 import com.ecsteam.nozzle.influxdb.nozzle.FirehoseReader;
 import com.ecsteam.nozzle.influxdb.nozzle.InfluxDBWriter;
+import org.cloudfoundry.client.CloudFoundryClient;
+import org.cloudfoundry.operations.CloudFoundryOperations;
+import org.cloudfoundry.operations.DefaultCloudFoundryOperations;
 import org.cloudfoundry.reactor.DefaultConnectionContext;
 import org.cloudfoundry.reactor.TokenProvider;
+import org.cloudfoundry.reactor.client.ReactorCloudFoundryClient;
 import org.cloudfoundry.reactor.doppler.ReactorDopplerClient;
 import org.cloudfoundry.reactor.tokenprovider.ClientCredentialsGrantTokenProvider;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -32,26 +36,36 @@ import java.net.URL;
 
 @Configuration
 @EnableConfigurationProperties(NozzleProperties.class)
-public class FirehoseConfig {
+public class CloudFoundryClientConfig {
 	private DefaultConnectionContext connectionContext(String apiHost, Boolean skipSslValidation) {
 		return DefaultConnectionContext.builder()
-			.apiHost(apiHost)
-			.skipSslValidation(skipSslValidation)
-			.build();
+				.apiHost(apiHost)
+				.skipSslValidation(skipSslValidation)
+				.build();
 	}
 
 	private TokenProvider tokenProvider(String clientId, String clientSecret) {
 		return ClientCredentialsGrantTokenProvider.builder()
-			.clientId(clientId)
-			.clientSecret(clientSecret)
-			.build();
+				.clientId(clientId)
+				.clientSecret(clientSecret)
+				.build();
 	}
 
 	private ReactorDopplerClient dopplerClient(NozzleProperties properties) {
 		return ReactorDopplerClient.builder()
-			.connectionContext(connectionContext(getApiHost(properties), properties.isSkipSslValidation()))
-			.tokenProvider(tokenProvider(properties.getClientId(), properties.getClientSecret()))
-			.build();
+				.connectionContext(connectionContext(getApiHost(properties), properties.isSkipSslValidation()))
+				.tokenProvider(tokenProvider(properties.getClientId(), properties.getClientSecret()))
+				.build();
+	}
+
+	@Bean
+	@Profile("!test")
+	@Autowired
+	CloudFoundryClient cfClient(NozzleProperties properties) {
+		return ReactorCloudFoundryClient.builder()
+				.connectionContext(connectionContext(getApiHost(properties), properties.isSkipSslValidation()))
+				.tokenProvider(tokenProvider(properties.getClientId(), properties.getClientSecret()))
+				.build();
 	}
 
 	@Bean
